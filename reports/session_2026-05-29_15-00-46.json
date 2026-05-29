@@ -1,0 +1,130 @@
+{
+  "meta": {
+    "tool": "Network Packet Analyzer",
+    "version": "1.0.0",
+    "generated_at": "2026-05-29T15:00:46"
+  },
+  "session": {
+    "start_time": "2026-05-29T14:58:49",
+    "end_time": "2026-05-29T15:00:46",
+    "duration_seconds": 117.2
+  },
+  "summary": {
+    "total_packets": 1131,
+    "total_bytes": 544752,
+    "total_mb": 0.52,
+    "unique_ips": 41,
+    "alert_count": 5
+  },
+  "protocol_breakdown": {
+    "UDP": {
+      "packets": 263,
+      "share_pct": 23.3
+    },
+    "TCP": {
+      "packets": 868,
+      "share_pct": 76.7
+    }
+  },
+  "top_source_ips": [
+    {
+      "ip": "172.16.1.30",
+      "packets": 486,
+      "bytes": 235747
+    },
+    {
+      "ip": "34.54.84.110",
+      "packets": 72,
+      "bytes": 77989
+    },
+    {
+      "ip": "34.149.66.154",
+      "packets": 71,
+      "bytes": 13078
+    },
+    {
+      "ip": "8.8.8.8",
+      "packets": 50,
+      "bytes": 22177
+    },
+    {
+      "ip": "20.42.65.94",
+      "packets": 44,
+      "bytes": 23729
+    },
+    {
+      "ip": "160.79.104.10",
+      "packets": 39,
+      "bytes": 19063
+    },
+    {
+      "ip": "52.104.96.53",
+      "packets": 32,
+      "bytes": 45065
+    },
+    {
+      "ip": "13.107.137.11",
+      "packets": 30,
+      "bytes": 15940
+    },
+    {
+      "ip": "192.178.211.95",
+      "packets": 30,
+      "bytes": 6994
+    },
+    {
+      "ip": "40.84.97.4",
+      "packets": 27,
+      "bytes": 23342
+    }
+  ],
+  "alerts": [
+    {
+      "type": "TRAFFIC_SPIKE",
+      "src_ip": "172.16.1.30",
+      "packets_per_window": 101,
+      "window_seconds": 60,
+      "timestamp": "2026-05-29T14:59:15"
+    },
+    {
+      "type": "TRAFFIC_SPIKE",
+      "src_ip": "172.16.1.30",
+      "packets_per_window": 101,
+      "window_seconds": 60,
+      "timestamp": "2026-05-29T14:59:44"
+    },
+    {
+      "type": "TRAFFIC_SPIKE",
+      "src_ip": "172.16.1.30",
+      "packets_per_window": 101,
+      "window_seconds": 60,
+      "timestamp": "2026-05-29T14:59:56"
+    },
+    {
+      "type": "PORT_SCAN",
+      "src_ip": "172.16.0.1",
+      "ports_count": 11,
+      "ports": [
+        50175,
+        51843,
+        54257,
+        57780,
+        58817,
+        60007,
+        61437,
+        61499,
+        64020,
+        64127,
+        64484
+      ],
+      "timestamp": "2026-05-29T14:59:57"
+    },
+    {
+      "type": "TRAFFIC_SPIKE",
+      "src_ip": "172.16.1.30",
+      "packets_per_window": 101,
+      "window_seconds": 60,
+      "timestamp": "2026-05-29T15:00:35"
+    }
+  ]
+}
