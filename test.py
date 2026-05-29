@@ -1,37 +1,36 @@
 # test_run.py  ← DELETE after testing
 
 """
-Smoke test for capture + parser working together.
-Captures 15 packets and prints the structured parsed dict.
+Smoke test — full pipeline with live dashboard.
+Runs until you press Ctrl+C.
 """
 
 import logging
 from src.capture import start_capture
 from src.parser import parse_packet
+from src.analyzer import PacketAnalyzer
+from src.dashboard import Dashboard
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
+logging.basicConfig(level=logging.WARNING)   # suppress INFO during live UI
 
 
-def handle_packet(raw_packet) -> None:
-    parsed = parse_packet(raw_packet)
+def main() -> None:
+    analyzer  = PacketAnalyzer()
+    dashboard = Dashboard(analyzer)
 
-    # parse_packet returns None for non-IP packets — skip them
-    if parsed is None:
-        return
+    def handle_packet(raw_packet) -> None:
+        parsed = parse_packet(raw_packet)
+        if parsed:
+            analyzer.process(parsed)
 
-    print(
-        f"  [{parsed['protocol']:<5}] "
-        f"{parsed['src_ip']:<18} → {parsed['dst_ip']:<18} "
-        f"port {str(parsed['dst_port'] or 'N/A'):<6} "
-        f"{parsed['size']} bytes "
-        f"flags={parsed['tcp_flags'] or '-'}"
-    )
+    dashboard.start()
+
+    try:
+        start_capture(handle_packet)          # runs forever until Ctrl+C
+    finally:
+        dashboard.stop()
+        print("\n✅ Capture stopped.")
 
 
 if __name__ == "__main__":
-    print("Capturing 20 packets...\n")
-    start_capture(handle_packet, packet_count=20)
-    print("\nDone.")
+    main()
