@@ -1,0 +1,9 @@
+# This directory is for sample .pcap files for offline testing.
+#
+# Download sample pcap files from:
+#   - https://wiki.wireshark.org/SampleCaptures
+#   - https://www.netresec.com/?page=PcapFiles
+#
+# Use with Scapy offline reading:
+#   from scapy.all import rdpcap
+#   packets = rdpcap("samples/sample.pcap")

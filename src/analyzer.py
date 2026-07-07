@@ -8,7 +8,7 @@ The statistical brain of the application.
 Consumes parsed packet dicts from parser.py, maintains rolling
 in-memory counters, and runs two anomaly detection algorithms:
 
-    1. Port Scan Detection   — sliding set of unique dest ports per source IP
+    1. Port Scan Detection   — time-windowed set of unique dest ports per source IP
     2. Traffic Spike         — sliding window packet count per source IP
 
 All public methods are thread-safe via a single reentrant lock,
@@ -26,6 +26,7 @@ from typing import Any
 
 from config import (
     PORT_SCAN_THRESHOLD,
+    PORT_SCAN_WINDOW_SECONDS,
     TRAFFIC_SPIKE_THRESHOLD,
     TRAFFIC_WINDOW_SECONDS,
 )
@@ -68,15 +69,19 @@ class PacketAnalyzer:
         # Total packets sent by each source IP
         self._packets_per_ip: defaultdict[str, int] = defaultdict(int)
 
-        # ── Port scan detection ───────────────────────────────────────────
-        # Set of unique destination ports contacted by each source IP.
-        # A set ensures we count distinct ports, not packet volume.
-        self._ports_per_ip: defaultdict[str, set] = defaultdict(set)
+        # ── Port scan detection (FIX: time-windowed deque) ────────────────
+        # FIX: Previously used a plain set() that grew unboundedly and
+        # caused false positives in long-running sessions (ports seen hours
+        # ago still counted). Now stores (timestamp, port) tuples so we can
+        # evict old port contacts older than PORT_SCAN_WINDOW_SECONDS.
+        #
+        # Structure: { src_ip: [(timestamp_float, dst_port), ...] }
+        self._port_contacts: defaultdict[str, list[tuple[float, int]]] = defaultdict(list)
 
         # ── Traffic spike detection ───────────────────────────────────────
         # List of datetime objects for each packet received from a source IP.
         # We keep only timestamps within the sliding window.
-        self._timestamps_per_ip: defaultdict[str, list] = defaultdict(list)
+        self._timestamps_per_ip: defaultdict[str, list[datetime]] = defaultdict(list)
 
         # ── Alerts ────────────────────────────────────────────────────────
         # Chronological list of detected anomaly dicts
@@ -171,45 +176,63 @@ class PacketAnalyzer:
 
     def _detect_port_scan(self, packet: dict) -> None:
         """
-        Port scan detection using a per-IP set of unique destination ports.
+        Port scan detection using a time-windowed list of (timestamp, port) tuples.
+
+        FIX: Previously used a plain set() which grew forever. Now uses a
+        sliding time window (PORT_SCAN_WINDOW_SECONDS) so old port contacts
+        are evicted, preventing false positives in long-running sessions.
 
         Algorithm:
-            - Add dst_port to a set keyed by src_ip.
-            - A Python set stores only unique values — repeated hits to the
-              same port do not increment the count.
-            - When the set size exceeds PORT_SCAN_THRESHOLD, fire an alert
-              and clear the set to suppress duplicate alerts.
+            - Record (now, dst_port) for each packet from src_ip.
+            - Evict entries older than PORT_SCAN_WINDOW_SECONDS.
+            - Count unique ports in the remaining window.
+            - When unique port count exceeds PORT_SCAN_THRESHOLD, fire alert.
 
-        Why a set?
+        Why track unique ports?
             Port scanning is about unique port diversity, not packet volume.
             An attacker contacting 15 different ports is suspicious.
             A browser hitting port 443 ten thousand times is not.
         """
-        src_ip = packet["src_ip"]
+        src_ip   = packet["src_ip"]
         dst_port = packet.get("dst_port")
 
-        # ICMP packets have no destination port — skip
+        # ICMP and OTHER packets have no destination port — skip
         if dst_port is None:
             return
 
-        self._ports_per_ip[src_ip].add(dst_port)
+        now     = datetime.now().timestamp()
+        cutoff  = now - PORT_SCAN_WINDOW_SECONDS
 
-        if len(self._ports_per_ip[src_ip]) > PORT_SCAN_THRESHOLD:
+        # Record this port contact
+        self._port_contacts[src_ip].append((now, dst_port))
+
+        # Evict contacts outside the time window
+        self._port_contacts[src_ip] = [
+            (ts, port) for ts, port in self._port_contacts[src_ip]
+            if ts > cutoff
+        ]
+
+        # Count unique ports in the window
+        unique_ports = {port for _, port in self._port_contacts[src_ip]}
+
+        if len(unique_ports) > PORT_SCAN_THRESHOLD:
             alert = {
-                "type"         : "PORT_SCAN",
-                "src_ip"       : src_ip,
-                "ports_count"  : len(self._ports_per_ip[src_ip]),
-                "ports"        : sorted(self._ports_per_ip[src_ip]),
-                "timestamp"    : datetime.now().isoformat(timespec="seconds"),
+                "type"        : "PORT_SCAN",
+                "src_ip"      : src_ip,
+                "ports_count" : len(unique_ports),
+                "ports"       : sorted(unique_ports),
+                "window_secs" : PORT_SCAN_WINDOW_SECONDS,
+                "timestamp"   : datetime.now().isoformat(timespec="seconds"),
             }
             self._alerts.append(alert)
             logger.warning(
-                "PORT SCAN detected — src: %s | unique ports: %d",
+                "PORT SCAN detected — src: %s | unique ports in %ds window: %d",
                 src_ip,
+                PORT_SCAN_WINDOW_SECONDS,
                 alert["ports_count"],
             )
-            # Reset so we don't fire the same alert every subsequent packet
-            self._ports_per_ip[src_ip].clear()
+            # Reset to suppress duplicate alerts until the next spike
+            self._port_contacts[src_ip].clear()
 
     def _detect_traffic_spike(self, packet: dict) -> None:
         """
@@ -226,7 +249,7 @@ class PacketAnalyzer:
             rate that reacts to sudden bursts while ignoring historical data.
         """
         src_ip = packet["src_ip"]
-        now = datetime.now()
+        now    = datetime.now()
 
         self._timestamps_per_ip[src_ip].append(now)
 
@@ -241,11 +264,11 @@ class PacketAnalyzer:
 
         if recent_count > TRAFFIC_SPIKE_THRESHOLD:
             alert = {
-                "type"              : "TRAFFIC_SPIKE",
-                "src_ip"            : src_ip,
-                "packets_per_window": recent_count,
-                "window_seconds"    : TRAFFIC_WINDOW_SECONDS,
-                "timestamp"         : now.isoformat(timespec="seconds"),
+                "type"               : "TRAFFIC_SPIKE",
+                "src_ip"             : src_ip,
+                "packets_per_window" : recent_count,
+                "window_seconds"     : TRAFFIC_WINDOW_SECONDS,
+                "timestamp"          : now.isoformat(timespec="seconds"),
             }
             self._alerts.append(alert)
             logger.warning(

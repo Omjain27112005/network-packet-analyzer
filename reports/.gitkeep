@@ -1,0 +1,5 @@
+# This directory holds auto-generated session reports.
+# It is intentionally git-ignored (see .gitignore).
+#
+# Reports are created automatically when you stop a capture (Ctrl+C).
+# Format: reports/session_YYYY-MM-DD_HH-MM-SS.json

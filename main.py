@@ -10,6 +10,7 @@ Wires all modules together and manages the application lifecycle.
         python main.py --interface Wi-Fi
         python main.py --count 100
         python main.py --timeout 60
+        python main.py --verbose
 
     Stop:
         Press Ctrl+C — triggers clean shutdown and generates report.
@@ -26,15 +27,6 @@ from src.capture import start_capture
 from src.dashboard import Dashboard
 from src.parser import parse_packet
 from src.reporter import Reporter
-
-# ── Logging setup ─────────────────────────────────────────────────────────────
-# Only WARNING+ shown in terminal so Rich dashboard isn't polluted.
-# Change to INFO for debugging.
-logging.basicConfig(
-    level=logging.WARNING,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-)
-logger = logging.getLogger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
@@ -60,11 +52,27 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Stop capture after N seconds (default: no limit).",
     )
+    # FIX: Added --verbose flag so log level is configurable without editing code
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        default=False,
+        help="Enable verbose (INFO-level) logging for debugging.",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
+
+    # FIX: Log level is now controlled by --verbose flag instead of being hardcoded
+    log_level = logging.INFO if args.verbose else logging.WARNING
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    )
+    logger = logging.getLogger(__name__)
+    logger.info("Verbose logging enabled.")
 
     # Instantiate all components
     analyzer  = PacketAnalyzer()

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TypedDict
 
 from scapy.all import ARP, ICMP, IP, TCP, UDP
 from scapy.packet import Packet
@@ -22,10 +22,21 @@ from scapy.packet import Packet
 logger = logging.getLogger(__name__)
 
 
-# ── Type alias for a parsed packet ───────────────────────────────────────────
-# A parsed packet is always this exact shape — all downstream
-# modules can rely on these keys existing.
-ParsedPacket = dict  # keys defined in _build_parsed_packet()
+# ── FIX: Use TypedDict instead of bare dict for strong typing ─────────────────
+# Replaces: ParsedPacket = dict
+# Now IDEs provide autocompletion and type-checkers can validate usage.
+class ParsedPacket(TypedDict):
+    """Structured representation of a captured network packet."""
+    timestamp : str          # ISO format with millisecond precision
+    src_ip    : str          # Source IP address
+    dst_ip    : str          # Destination IP address
+    protocol  : str          # "TCP", "UDP", "ICMP", or "OTHER"
+    src_port  : Optional[int]  # None for ICMP/OTHER
+    dst_port  : Optional[int]  # None for ICMP/OTHER
+    size      : int          # Total IP packet length in bytes
+    ttl       : int          # IP time-to-live field
+    tcp_flags : Optional[str]  # e.g. "S", "SA", "A" — None for UDP/ICMP
+    icmp_type : Optional[int]  # e.g. 8=echo request — None for TCP/UDP
 
 
 def parse_packet(raw_packet: Packet) -> Optional[ParsedPacket]:
@@ -56,18 +67,18 @@ def parse_packet(raw_packet: Packet) -> Optional[ParsedPacket]:
         # ICMP type is useful for ping / traceroute detection
         icmp_type = _extract_icmp_type(raw_packet)
 
-        return {
-            "timestamp" : datetime.now().isoformat(timespec="milliseconds"),
-            "src_ip"    : ip_layer.src,
-            "dst_ip"    : ip_layer.dst,
-            "protocol"  : protocol,
-            "src_port"  : src_port,          # None for ICMP
-            "dst_port"  : dst_port,          # None for ICMP
-            "size"      : ip_layer.len,      # total IP packet size in bytes
-            "ttl"       : ip_layer.ttl,
-            "tcp_flags" : tcp_flags,         # e.g. "S", "SA", "A" — None for UDP/ICMP
-            "icmp_type" : icmp_type,         # e.g. 8 = echo request — None for TCP/UDP
-        }
+        return ParsedPacket(
+            timestamp = datetime.now().isoformat(timespec="milliseconds"),
+            src_ip    = ip_layer.src,
+            dst_ip    = ip_layer.dst,
+            protocol  = protocol,
+            src_port  = src_port,          # None for ICMP
+            dst_port  = dst_port,          # None for ICMP
+            size      = ip_layer.len,      # total IP packet size in bytes
+            ttl       = ip_layer.ttl,
+            tcp_flags = tcp_flags,         # e.g. "S", "SA", "A" — None for UDP/ICMP
+            icmp_type = icmp_type,         # e.g. 8 = echo request — None for TCP/UDP
+        )
 
     except Exception as exc:
         # Never let a malformed packet crash the capture loop

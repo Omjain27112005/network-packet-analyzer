@@ -11,14 +11,20 @@ no hunting through individual modules.
 from __future__ import annotations
 
 # ── Capture ───────────────────────────────────────────────────────────────────
-INTERFACE: str | None = None   # None = auto-detect (recommended)
-PACKET_COUNT: int = 0          # 0 = capture forever
-CAPTURE_TIMEOUT: int | None = None  # None = no timeout
+INTERFACE: str | None = None        # None = auto-detect (recommended)
+PACKET_COUNT: int = 0               # 0 = capture forever
+CAPTURE_TIMEOUT: int | None = None  # None = no timeout (FIX: was missing value)
 
 # ── Anomaly Detection ─────────────────────────────────────────────────────────
 PORT_SCAN_THRESHOLD: int = 10        # unique dest ports per source IP → alert
-TRAFFIC_SPIKE_THRESHOLD: int = 100   # packets per 60s from one IP → alert
+TRAFFIC_SPIKE_THRESHOLD: int = 100   # packets per window from one IP → alert
 TRAFFIC_WINDOW_SECONDS: int = 60     # sliding window size in seconds
+
+# ── Port Scan Time Window ─────────────────────────────────────────────────────
+# How long (seconds) to remember a port contact for port-scan detection.
+# Ports seen older than this are evicted, preventing false positives in
+# long-running sessions. Set to 0 to disable time-based eviction.
+PORT_SCAN_WINDOW_SECONDS: int = 120  # evict ports older than 2 minutes
 
 # ── Reporting ─────────────────────────────────────────────────────────────────
 REPORT_DIR: str = "reports"
